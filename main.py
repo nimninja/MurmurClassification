@@ -8,22 +8,16 @@ import matplotlib.pyplot as plt
 import csv
 import wave
 import contextlib
+from PYMONGOTEST import collection_name
+from MONGODBGET import get_database
+import base64
+from PIL import Image
+from pandas import DataFrame
 
-def test(input_folder, output_folder):
-    # Create output folder if it doesn't exist
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder)
-
-    # Loop through all WAV files in the input folder
-    for filename in os.listdir(input_folder):
-        if filename.endswith(".png"):
-            input_filepath = os.path.join(input_folder, filename)
-            output_filepath = os.path.join(output_folder, os.path.splitext(filename)[0] + ".png")
-            fname = input_filepath
-            tflow(output_filepath, fname)
+dbname = get_database()
 
 
-def tflow(output_filepath, fname):
+def tflow(output_filepath, fname, patient_name, diagnosis):
 
     # Disable scientific notation for clarity
     np.set_printoptions(suppress=True)
@@ -64,25 +58,58 @@ def tflow(output_filepath, fname):
     # Print prediction and confidence score
     print("Class:", class_name[2:], end="")
     print("Confidence Score:", confidence_score)
-    classacurate = class_name[2:].strip()
+    classaccurate = class_name[2:].strip()
 
     if "murmur" in output_filepath:
         check = "Murmur Prese..."
     else:
         check = "Murmur Absen..."
 
-    if (classacurate == check):
+    if (classaccurate == check):
         accurate = True
     else:
         accurate = False
 
     print(accurate)
 
-    #with contextlib.closing(wave.open(fname, 'r')) as f:
-        #frames = f.getnframes()
-        #rate = f.getframerate()
-        #duration = frames / float(rate)
-        #print(duration)
+    with contextlib.closing(wave.open(fname, 'r')) as f:
+        frames = f.getnframes()
+        rate = f.getframerate()
+        duration = frames / float(rate)
+        print(duration)
+
+    confidence_score = confidence_score * 100
+
+    # assume data contains your decoded image
+
+
+    # Convert the image to base64 format
+    with open(output_filepath, "rb") as e:
+        encoded_image = base64.b64encode(e.read())
+        encoded_image = str(encoded_image)
+        encoded_image = encoded_image.replace("'", "")
+        encoded_image = encoded_image.replace(encoded_image[0], "", 1)
+
+    if option == 1:
+        diagnosis_1 = {
+            "patient_name" : patient_name,
+            "prediction" : classaccurate,
+            "confidence" : confidence_score,
+            "audio_length" : duration,
+            "img" : encoded_image
+        }
+        collection_name.insert_one(diagnosis_1)
+
+    if option == 2:
+        diagnosis_2 = {
+            "patient_name": patient_name,
+            "diagnosis": diagnosis,
+            "confidence": confidence_score,
+            "audio_length": duration,
+            "img": encoded_image
+        }
+
+        collection_name.insert_one(diagnosis_2)
 
 
     #with open("CCSV", "a", newline='') as csv_file:
@@ -90,8 +117,7 @@ def tflow(output_filepath, fname):
         #writer.writerow([output_filepath, duration, confidence_score, classacurate, accurate])
 
 
-
-def convert_wav_to_spectrogram(input_folder, output_folder):
+def convert_wav_to_spectrogram(input_folder, output_folder, patient_name, diagnosis):
     # Create output folder if it doesn't exist
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
@@ -118,16 +144,49 @@ def convert_wav_to_spectrogram(input_folder, output_folder):
 
             print('Spectrogram saved for {}'.format(filename))
             fname = input_filepath
-            tflow(output_filepath, fname)
-
-
+            tflow(output_filepath, fname, patient_name, diagnosis)
+            print(output_filepath)
 
 
 def option1():
-    input_folder = input("Enter path to your input .wav file: ")
+    input_folder = input("Enter path to your folder of wave files: ")
     output_folder = input("Enter output location: ")
-    convert_wav_to_spectrogram(input_folder, output_folder)
+    patient_name = input("Enter name: ")
+    convert_wav_to_spectrogram(input_folder, output_folder, patient_name, diagnosis = "")
 
-option1()
 
+def option2():
+    input_folder = input("Enter path to your folder of wave files: ")
+    output_folder = input("Enter output location: ")
+    patient_name = input("Enter name: ")
+    diagnosis = input("Enter diagnosis: ")
+    convert_wav_to_spectrogram(input_folder, output_folder, patient_name, diagnosis)
+
+
+def option3():
+    dbname = get_database()
+    patient_name = input("patient_name: ")
+    collection_name = dbname["diagnosis_info"]
+    item_details = collection_name.find({"patient_name" : patient_name})
+    for item in item_details:
+        # convert the dictionary objects to dataframe
+        items_df = DataFrame(item_details)
+
+        # see the magic
+        print(items_df)
+
+
+option = int(input("option: "))
+if option == 1:
+    option1()
+
+if option == 2:
+    option2()
+
+if option == 3:
+    option3()
+
+else:
+    print("enter 1 or 2 or 3 again")
+    exit()
 
