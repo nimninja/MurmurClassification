@@ -1,32 +1,69 @@
-from keras.models import load_model  # TensorFlow is required for Keras to work
-from PIL import Image, ImageOps  # Install pillow instead of PIL
-import numpy as np
-import os
+import streamlit as st
 import librosa
 import librosa.display
 import matplotlib.pyplot as plt
-import csv
+import numpy as np
+from PIL import ImageOps, Image
+from keras.models import load_model
+from MONGODBGET import get_database
+from os import environ
+from pandas import DataFrame
+import random
+import base64
 import wave
 import contextlib
 from PYMONGOTEST import collection_name
-from MONGODBGET import get_database
-import base64
-from PIL import Image
-from pandas import DataFrame
-
-dbname = get_database()
 
 
-def tflow(output_filepath, fname, patient_name, diagnosis):
 
+st.markdown(
+    """
+<style>
+button.st-emotion-cache-nbt3vv.ef3psqc13 {
+    height: 100px !important;
+    padding-top: 10px !important;
+    padding-bottom: 10px !important; 
+    color: rgb(255, 225, 255) !important;
+    border: 1px solid rgb(255, 255, 255) !important;
+    font-size: 100px !important;
+}
+div.st-emotion-cache-3ps0xc.e1nzilvr5 {
+    width: 700px !important;
+    font-size: 1000px !important;  
+    font-family: "Source Sans", sans-serif;
+}
+div.st-emotion-cache-3ps0xc e1nzilvr5 {
+    --rem: 16;
+    text-size-adjust: 100%;
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+    -webkit-font-smoothing: auto;
+    color-scheme: dark;
+    text-transform: none;
+    font-weight: 400;
+    line-height: 1.6;
+    user-select: none;
+    cursor: pointer;
+    color: rgb(255, 225, 255) !important;
+    box-sizing: border-box;
+    width: 700px !important;
+    font-size: 1000px !important;
+    font-family: "Source Sans", sans-serif;
+}
+</style>
+""",
+    unsafe_allow_html=True,
+)
+
+
+def tflow(output_path, fname, patient_name):
     # Disable scientific notation for clarity
     np.set_printoptions(suppress=True)
 
     # Load the model
-    model = load_model("keras_Model_real.h5", compile=False)
+    model = load_model(r"keras_model_real.h5", compile=False)
 
     # Load the labels
-    class_names = open("labels.txt", "r").readlines()
+    class_names = open(r"labels.txt", "r").readlines()
 
     # Create the array of the right shape to feed into the keras model
     # The 'length' or number of images you can put into the array is
@@ -34,7 +71,7 @@ def tflow(output_filepath, fname, patient_name, diagnosis):
     data = np.ndarray(shape=(1, 224, 224, 3), dtype=np.float32)
 
     # Replace this with the path to your image
-    image = Image.open(output_filepath).convert("RGB")
+    image = Image.open(output_path).convert("RGB")
 
     # resizing the image to be at least 224x224 and then cropping from the center
     size = (224, 224)
@@ -59,134 +96,104 @@ def tflow(output_filepath, fname, patient_name, diagnosis):
     print("Class:", class_name[2:], end="")
     print("Confidence Score:", confidence_score)
     classaccurate = class_name[2:].strip()
+    if classaccurate == "Murmur Prese...":
+        classaccurate = "Murmur Present"
+    elif classaccurate == "Murmur Absen...":
+        classaccurate = "Murmur  Absent"
 
-    if "murmur" in output_filepath:
-        check = "Murmur Prese..."
-    else:
-        check = "Murmur Absen..."
-
-    if (classaccurate == check):
-        accurate = True
-    else:
-        accurate = False
-
-    print(accurate)
-
-    with contextlib.closing(wave.open(fname, 'r')) as f:
-        frames = f.getnframes()
-        rate = f.getframerate()
-        duration = frames / float(rate)
-        print(duration)
-
-    confidence_score = confidence_score * 100
-
-    # assume data contains your decoded image
-
-
-    # Convert the image to base64 format
-    with open(output_filepath, "rb") as e:
+    with open(output_path, "rb") as e:
         encoded_image = base64.b64encode(e.read())
         encoded_image = str(encoded_image)
         encoded_image = encoded_image.replace("'", "")
         encoded_image = encoded_image.replace(encoded_image[0], "", 1)
+    confidence_score = confidence_score * 100
 
-    if option == 1:
-        diagnosis_1 = {
-            "patient_name" : patient_name,
-            "prediction" : classaccurate,
-            "confidence" : confidence_score,
-            "audio_length" : duration,
-            "img" : encoded_image
-        }
-        collection_name.insert_one(diagnosis_1)
+    #with contextlib.closing(wave.open(fname, 'r')) as f:
+        #frames = f.getnframes()
+        #rate = f.getframerate()
+        #duration = frames / float(rate)
+        #print(duration)
 
-    if option == 2:
-        diagnosis_2 = {
-            "patient_name": patient_name,
-            "diagnosis": diagnosis,
-            "confidence": confidence_score,
-            "audio_length": duration,
-            "img": encoded_image
-        }
-
-        collection_name.insert_one(diagnosis_2)
+    confidence_score = round(confidence_score, 2)
+    st.header("Prediction: " + classaccurate)
+    st.header("Confidence score is " + str(confidence_score) + "%")
+    diagnosis_1 = {
+        "patient_name" : patient_name,
+        "prediction" : classaccurate,
+        "confidence" : confidence_score,
+        #"audio_length" : duration,
+        "img" : encoded_image
+    }
+    collection_name.insert_one(diagnosis_1)
 
 
-    #with open("CCSV", "a", newline='') as csv_file:
-        #writer = csv.writer(csv_file)
-        #writer.writerow([output_filepath, duration, confidence_score, classacurate, accurate])
+def save_spectrogram(wav_file, output_file, patient_name):
+    # Load audio file
+    y, sr = librosa.load(wav_file)
+
+    # Compute spectrogram
+    D = np.abs(librosa.stft(y))
+
+    # Display spectrogram
+    plt.figure(figsize=(10, 4))
+    librosa.display.specshow(librosa.amplitude_to_db(D, ref=np.max), sr=sr, x_axis='time', y_axis='log')
+    plt.colorbar(format='%+2.0f dB')
+    plt.title(f'Spectrogram for {patient_name} : {wav_file.name}')
+    plt.tight_layout()
+
+    # Save the spectrogram to the specified location
+    plt.savefig(output_file)
+    st.pyplot(plt)
+    plt.close()
+    tflow(output_file, wav_file, patient_name)
+    st.write(wav_file)
 
 
-def convert_wav_to_spectrogram(input_folder, output_folder, patient_name, diagnosis):
-    # Create output folder if it doesn't exist
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder)
-
-    # Loop through all WAV files in the input folder
-    for filename in os.listdir(input_folder):
-        if filename.endswith(".wav"):
-            input_filepath = os.path.join(input_folder, filename)
-            output_filepath = os.path.join(output_folder, os.path.splitext(filename)[0] + ".png")
-
-            # Load the audio file
-            y, sr = librosa.load(input_filepath)
-
-            # Generate the spectrogram
-            D = librosa.amplitude_to_db(np.abs(librosa.stft(y)), ref=np.max)
-
-            # Plot and save the spectrogram
-            plt.figure(figsize=(10, 4))
-            librosa.display.specshow(D, sr=sr, x_axis='time', y_axis='log')
-            plt.colorbar(format='%+2.0f dB')
-            plt.title('Spectrogram of {}'.format(filename))
-            plt.savefig(output_filepath)
-            plt.close()
-
-            print('Spectrogram saved for {}'.format(filename))
-            fname = input_filepath
-            tflow(output_filepath, fname, patient_name, diagnosis)
-            print(output_filepath)
+if 'clicked' not in st.session_state:
+    st.session_state.clicked = False
 
 
-def option1():
-    input_folder = input("Enter path to your folder of wave files: ")
-    output_folder = input("Enter output location: ")
-    patient_name = input("Enter name: ")
-    convert_wav_to_spectrogram(input_folder, output_folder, patient_name, diagnosis = "")
+if 'button' not in st.session_state:
+    st.session_state.button = False
 
 
-def option2():
-    input_folder = input("Enter path to your folder of wave files: ")
-    output_folder = input("Enter output location: ")
-    patient_name = input("Enter name: ")
-    diagnosis = input("Enter diagnosis: ")
-    convert_wav_to_spectrogram(input_folder, output_folder, patient_name, diagnosis)
+def click_button():
+    st.session_state.clicked = True
 
 
-def option3():
+def click2():
+    st.session_state.button = True
+
+
+option_1 = st.button(r"$\textsf{\Huge Receive Diagnosis}$", type = "primary", on_click=click_button)
+option_2 = st.button(r"$\textsf{\Large Patient History}$", key = "2", on_click=click2)
+
+while st.session_state.clicked:
+    st.session_state.button = False
+    audio_path = st.file_uploader("Select the Audio Recording", type="wav")
+    patient_name = st.text_input("Enter Patient's Name", key = "save")
+
+    export_path = environ.get("TEMP")
+
+    export_path = export_path + "\\" + patient_name + "spectrogram.png"
+
+    if audio_path != "" and export_path != "" and patient_name != "":
+        save_spectrogram(audio_path, export_path, patient_name)
+
+
+while st.session_state.button:
+    st.session_state.clicked = False
     dbname = get_database()
-    patient_name = input("patient_name: ")
+    patient_name = st.text_input("Patient Name", key = random.random)
     collection_name = dbname["diagnosis_info"]
     item_details = collection_name.find({"patient_name" : patient_name})
+    if item_details == "":
+        st.write("No History For This Patient \n Verify Name is Valid")
     for item in item_details:
         # convert the dictionary objects to dataframe
         items_df = DataFrame(item_details)
 
         # see the magic
         print(items_df)
-
-
-option = int(input("option: "))
-if option == 1:
-    option1()
-
-if option == 2:
-    option2()
-
-if option == 3:
-    option3()
-
-else:
-    print("enter 1 or 2 or 3 again")
-    exit()
+        st.write(items_df)
 
