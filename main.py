@@ -63,10 +63,10 @@ def tflow(output_path, fname, patient_name):
     np.set_printoptions(suppress=True)
 
     # Load the model
-    model = load_model(r"C:\Users\nimay\PycharmProjects\Heart_Sound_Classification\keras_model_real.h5", compile=False)
+    model = load_model(r"keras_model_real.h5", compile=False)
 
     # Load the labels
-    class_names = open(r"C:\Users\nimay\PycharmProjects\Heart_Sound_Classification\labels.txt", "r").readlines()
+    class_names = open(r"labels.txt", "r").readlines()
 
     # Create the array of the right shape to feed into the keras model
     # The 'length' or number of images you can put into the array is
