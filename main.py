@@ -47,7 +47,10 @@ div.st-emotion-cache-3ps0xc e1nzilvr5 {
     box-sizing: border-box;
     width: 700px !important;
     font-size: 1000px !important;
-    font-family: "Source Sans", sans-serif;
+    font-family: "Source Sans Pro", sans-serif;
+}
+div.row-widget.stButton {
+    color: rgb(200,200,200) !important;
 }
 </style>
 """,
@@ -60,10 +63,10 @@ def tflow(output_path, fname, patient_name):
     np.set_printoptions(suppress=True)
 
     # Load the model
-    model = load_model(r"keras_model_real.h5", compile=False)
+    model = load_model(r"C:\Users\nimay\PycharmProjects\Heart_Sound_Classification\keras_model_real.h5", compile=False)
 
     # Load the labels
-    class_names = open(r"labels.txt", "r").readlines()
+    class_names = open(r"C:\Users\nimay\PycharmProjects\Heart_Sound_Classification\labels.txt", "r").readlines()
 
     # Create the array of the right shape to feed into the keras model
     # The 'length' or number of images you can put into the array is
@@ -146,32 +149,33 @@ def save_spectrogram(wav_file, output_file, patient_name):
     st.pyplot(plt)
     plt.close()
     tflow(output_file, wav_file, patient_name)
-    st.write(wav_file)
 
 
-if 'clicked' not in st.session_state:
-    st.session_state.clicked = False
+if 'button1' not in st.session_state:
+    st.session_state.button1 = False
 
 
-if 'button' not in st.session_state:
-    st.session_state.button = False
+if 'button2' not in st.session_state:
+    st.session_state.button2 = False
 
 
-def click_button():
-    st.session_state.clicked = True
+def click1():
+    st.session_state.button2 = False
+    st.session_state.button1 = True
 
 
 def click2():
-    st.session_state.button = True
+    st.session_state.button1 = False
+    st.session_state.button2 = True
 
 
-option_1 = st.button(r"$\textsf{\Huge Receive Diagnosis}$", type = "primary", on_click=click_button)
-option_2 = st.button(r"$\textsf{\Large Patient History}$", key = "2", on_click=click2)
+option_1 = st.button(r"$\textsf{\Huge Receive Diagnosis}$", type = "primary", on_click=click1)
+option_2 = st.button(r"$\textsf{\Large Patient History}$", key = "primary", on_click=click2)
 
-while st.session_state.clicked:
-    st.session_state.button = False
+while st.session_state.button1:
+    st.session_state.button2 = False
     audio_path = st.file_uploader("Select the Audio Recording", type="wav")
-    patient_name = st.text_input("Enter Patient's Name", key = "save")
+    patient_name = st.text_input("Enter Patient's Name")
 
     export_path = environ.get("TEMP")
 
@@ -181,8 +185,8 @@ while st.session_state.clicked:
         save_spectrogram(audio_path, export_path, patient_name)
 
 
-while st.session_state.button:
-    st.session_state.clicked = False
+while st.session_state.button2:
+    st.session_state.button1 = False
     dbname = get_database()
     patient_name = st.text_input("Patient Name", key = random.random)
     collection_name = dbname["diagnosis_info"]
